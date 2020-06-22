@@ -14,12 +14,11 @@ DHT dht(DHTPIN, DHT11);
 
 Adafruit_NeoPixel strip = Adafruit_NeoPixel(count_led, PIN, NEO_GRB + NEO_KHZ800);
 
-boolean butt_flag = 0;
-boolean butt = 0;
-unsigned long last_press;
-unsigned long last_temp;
-unsigned long last_pir;
-unsigned long last_pir_diod;
+boolean butt_flag;
+boolean butt;
+uint32_t last_press;
+uint32_t last_temp;
+uint32_t last_pir;
 
 void setup()
 {
@@ -28,10 +27,8 @@ void setup()
   Serial.begin(9600);
   dht.begin();
   strip.begin();
-  strip.setBrightness(255);
-  strip.show(); // Initialize all pixels to 'off'
+  strip.show();
 }
-
 
 void dht_serial()
 {
@@ -39,25 +36,23 @@ void dht_serial()
   {
     if (millis() - last_temp > 5000)
     {
-      int h = dht.readHumidity();    //Измеряем влажность
-      int t = dht.readTemperature(); //Измеряем температуру
+      int8_t h = dht.readHumidity();    //Измеряем влажность
+      int8_t t = dht.readTemperature(); //Измеряем температуру
       last_temp = millis();
       if (isnan(h) || isnan(t))
       { // Проверка. Если не удается считать показания, выводится «Ошибка считывания», и программа завершает работу
-        Serial.println("Error");
+        Serial.println(F("Error"));
         return;
       }
-      Serial.print("Air humidity: ");
+      Serial.print(F("Air humidity: "));
       Serial.print(h);
-      Serial.print(" %\t");
-      Serial.print("Air temp: ");
+      Serial.print(F(" %\t"));
+      Serial.print(F("Air temp: "));
       Serial.print(t);
-      Serial.println(" *C "); //Вывод показателей на экран
+      Serial.println(F(" *C ")); //Вывод показателей на экран
     }
   }
 }
-
-
 
 // Fill the dots one after the other with a color
 void colorWipe(uint32_t c, uint8_t wait)
@@ -148,16 +143,16 @@ void rainbowCycle(uint8_t wait)
   }
 }
 
-
 void loop()
 {
-
-  if (analogRead(PIRpin) > 500 && millis() - last_pir > 10000)
+  if (Serial)
   {
-    //Сигнал с датчика движения
-    last_pir = millis();
-    Serial.println("Есть движение!");
-    last_pir_diod = millis();
+    if (analogRead(PIRpin) > 500 && millis() - last_pir > 10000)
+    {
+      //Сигнал с датчика движения
+      last_pir = millis();
+      Serial.println(F("Есть движение!"));
+    }
   }
 
   dht_serial();
