@@ -1,4 +1,5 @@
 #include <Arduino.h>
+#include <avr/io.h>
 #include <util/delay.h>
 #include <Wire.h>
 #include <DHT.h>
@@ -7,7 +8,6 @@
 #include "GyverHacks.h"
 
 #define LEDPIN 3
-#define butt_pin 6
 #define count_led 90
 #define DHTPIN 2
 #define PIRpin 0
@@ -27,11 +27,11 @@ void dht_serial()
 {
   if (millis() - last_temp > 5000)
   {
-    int8_t h = dht.readHumidity();    //Измеряем влажность
-    int8_t t = dht.readTemperature(); //Измеряем температуру
+    int8_t h = dht.readHumidity();
+    int8_t t = dht.readTemperature();
     last_temp = millis();
     if (isnan(h) || isnan(t))
-    { // Проверка. Если не удается считать показания, выводится «Ошибка считывания», и программа завершает работу
+    {
       Serial.println(F("Error"));
       return;
     }
@@ -75,11 +75,11 @@ uint32_t Wheel(byte WheelPos)
   }
 }
 // Slightly different, this makes the rainbow equally distributed throughout
+
 void rainbowCycle(uint8_t wait)
 {
   uint16_t i, j;
-  butt = !readPin(butt_pin); // считать текущее положение кнопки
-  if (butt == 1 && butt_flag == 0 && millis() - last_press > 500)
+  if (!((PIND >> 6) & 1) && butt_flag == 0 && millis() - last_press > 500)
   {
     butt_flag = 1;
     last_press = millis();
@@ -90,19 +90,16 @@ void rainbowCycle(uint8_t wait)
         dht_serial();
         if (analogRead(PIRpin) > 500 && millis() - last_pir > 10000)
         {
-          //Сигнал с датчика движения
           last_pir = millis();
-          Serial.println("Есть движение!");
+          Serial.println(F("Есть движение!"));
         }
-        butt = !readPin(butt_pin); // считать текущее положение кнопки
-        if (butt == 1 && butt_flag == 1 && millis() - last_press > 500)
+        if (!((PIND >> 6) & 1) && butt_flag == 1 && millis() - last_press > 500)
         {
           butt_flag = 0;
           for (int i = 0; i < count_led; i++)
           {
             strip.setPixelColor(i, strip.Color(0, 0, 0)); // Черный цвет, т.е. выключено.
           }
-          // Передаем цвета ленте.
           strip.show();
           last_press = millis();
           return;
@@ -111,8 +108,7 @@ void rainbowCycle(uint8_t wait)
         {
           for (i = 0; i < strip.numPixels(); i++)
           {
-            butt = !readPin(butt_pin); // считать текущее положение кнопки
-            if (butt == 1 && butt_flag == 0 && millis() - last_press > 500)
+            if (!((PIND >> 6) & 1) && butt_flag == 0 && millis() - last_press > 500)
             {
               butt_flag = 0;
               for (int i = 0; i < count_led; i++)
@@ -142,8 +138,7 @@ void rainbowCycle(uint8_t wait)
 int main()
 {
   init();
-
-  pinMode(butt_pin, INPUT_PULLUP);
+  DDRD &=~(1<<6); PORTD |=1<<6;
   Serial.begin(9600);
   setADCrate(1);
   dht.begin();
@@ -157,9 +152,8 @@ int main()
     {
       if (analogRead(PIRpin) > 500 && millis() - last_pir > 10000)
       {
-        //Сигнал с датчика движения
         last_pir = millis();
-        Serial.println("Есть движение!");
+        Serial.println(F("Есть движение!"));
       }
 
       dht_serial();
