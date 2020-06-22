@@ -1,8 +1,10 @@
 #include <Arduino.h>
+#include <util/delay.h>
 #include <Wire.h>
 #include <DHT.h>
 #include <DHT_U.h>
 #include <Adafruit_NeoPixel.h>
+#include "GyverHacks.h"
 
 #define LEDPIN 3
 #define butt_pin 6
@@ -20,37 +22,25 @@ uint32_t last_press;
 uint32_t last_temp;
 uint32_t last_pir;
 
-void setup()
-{
-
-  pinMode(butt_pin, INPUT_PULLUP);
-  Serial.begin(9600);
-  dht.begin();
-  strip.begin();
-  strip.show();
-}
 
 void dht_serial()
 {
-  if (Serial)
+  if (millis() - last_temp > 5000)
   {
-    if (millis() - last_temp > 5000)
-    {
-      int8_t h = dht.readHumidity();    //Измеряем влажность
-      int8_t t = dht.readTemperature(); //Измеряем температуру
-      last_temp = millis();
-      if (isnan(h) || isnan(t))
-      { // Проверка. Если не удается считать показания, выводится «Ошибка считывания», и программа завершает работу
-        Serial.println(F("Error"));
-        return;
-      }
-      Serial.print(F("Air humidity: "));
-      Serial.print(h);
-      Serial.print(F(" %\t"));
-      Serial.print(F("Air temp: "));
-      Serial.print(t);
-      Serial.println(F(" *C ")); //Вывод показателей на экран
+    int8_t h = dht.readHumidity();    //Измеряем влажность
+    int8_t t = dht.readTemperature(); //Измеряем температуру
+    last_temp = millis();
+    if (isnan(h) || isnan(t))
+    { // Проверка. Если не удается считать показания, выводится «Ошибка считывания», и программа завершает работу
+      Serial.println(F("Error"));
+      return;
     }
+    Serial.print(F("Air humidity: "));
+    Serial.print(h);
+    Serial.print(F(" %\t"));
+    Serial.print(F("Air temp: "));
+    Serial.print(t);
+    Serial.println(F(" *C ")); //Вывод показателей на экран
   }
 }
 
@@ -61,7 +51,7 @@ void colorWipe(uint32_t c, uint8_t wait)
   {
     strip.setPixelColor(i, c);
     strip.show();
-    delay(wait);
+    _delay_us(wait);
   }
 }
 
@@ -88,18 +78,23 @@ uint32_t Wheel(byte WheelPos)
 void rainbowCycle(uint8_t wait)
 {
   uint16_t i, j;
-  strip.setBrightness(255);
-  butt = !digitalRead(butt_pin); // считать текущее положение кнопки
+  butt = !readPin(butt_pin); // считать текущее положение кнопки
   if (butt == 1 && butt_flag == 0 && millis() - last_press > 500)
   {
     butt_flag = 1;
     last_press = millis();
-    while (true)
+    while (1)
     {
       for (j = 0; j < 256 * 5; j++)
       { // 5 cycles of all colors on wheel
         dht_serial();
-        butt = !digitalRead(butt_pin); // считать текущее положение кнопки
+        if (analogRead(PIRpin) > 500 && millis() - last_pir > 10000)
+        {
+          //Сигнал с датчика движения
+          last_pir = millis();
+          Serial.println("Есть движение!");
+        }
+        butt = !readPin(butt_pin); // считать текущее положение кнопки
         if (butt == 1 && butt_flag == 1 && millis() - last_press > 500)
         {
           butt_flag = 0;
@@ -116,7 +111,7 @@ void rainbowCycle(uint8_t wait)
         {
           for (i = 0; i < strip.numPixels(); i++)
           {
-            butt = !digitalRead(butt_pin); // считать текущее положение кнопки
+            butt = !readPin(butt_pin); // считать текущее положение кнопки
             if (butt == 1 && butt_flag == 0 && millis() - last_press > 500)
             {
               butt_flag = 0;
@@ -135,7 +130,7 @@ void rainbowCycle(uint8_t wait)
             }
           }
           strip.show();
-          delay(wait);
+          _delay_us(wait);
         }
       }
       last_press = millis();
@@ -143,18 +138,33 @@ void rainbowCycle(uint8_t wait)
   }
 }
 
-void loop()
+
+int main()
 {
-  if (Serial)
+  init();
+
+  pinMode(butt_pin, INPUT_PULLUP);
+  Serial.begin(9600);
+  setADCrate(1);
+  dht.begin();
+  strip.begin();
+  strip.show();
+
+  for (;;)
   {
-    if (analogRead(PIRpin) > 500 && millis() - last_pir > 10000)
+    _delay_us(3000);
+    while (1)
     {
-      //Сигнал с датчика движения
-      last_pir = millis();
-      Serial.println(F("Есть движение!"));
+      if (analogRead(PIRpin) > 500 && millis() - last_pir > 10000)
+      {
+        //Сигнал с датчика движения
+        last_pir = millis();
+        Serial.println("Есть движение!");
+      }
+
+      dht_serial();
+      rainbowCycle(2); // change for speed
     }
   }
-
-  dht_serial();
-  rainbowCycle(2); // change for speed
+  return 0;
 }
