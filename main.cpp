@@ -4,7 +4,7 @@
 #include <DHT_U.h>
 #include <Adafruit_NeoPixel.h>
 
-#define PIN 3
+#define LEDPIN 3
 #define butt_pin 6
 #define count_led 90
 #define DHTPIN 2
@@ -12,7 +12,7 @@
 
 DHT dht(DHTPIN, DHT11);
 
-Adafruit_NeoPixel strip = Adafruit_NeoPixel(count_led, PIN, NEO_GRB + NEO_KHZ800);
+Adafruit_NeoPixel strip = Adafruit_NeoPixel(count_led, LEDPIN, NEO_GRB + NEO_KHZ800);
 
 boolean butt_flag;
 boolean butt;
