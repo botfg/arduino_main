@@ -23,7 +23,7 @@ uint32_t last_temp;
 uint32_t last_pir;
 
 
-void dht_serial()
+void dht_serial(void)
 {
   if (millis() - last_temp > 5000)
   {
@@ -135,7 +135,7 @@ void rainbowCycle(uint8_t wait)
 }
 
 
-int main()
+int main(void)
 {
   init();
   DDRD &=~(1<<6); PORTD |=1<<6;
