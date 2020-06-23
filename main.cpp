@@ -12,6 +12,8 @@
 #define DHTPIN 2
 #define PIRpin 0
 
+unsigned long lastSoundDetectTime;
+
 DHT dht(DHTPIN, DHT11);
 
 Adafruit_NeoPixel strip = Adafruit_NeoPixel(count_led, LEDPIN, NEO_GRB + NEO_KHZ800);
@@ -21,7 +23,7 @@ boolean butt;
 uint32_t last_press;
 uint32_t last_temp;
 uint32_t last_pir;
-
+uint32_t lastSound;
 
 void dht_serial(void)
 {
@@ -134,11 +136,11 @@ void rainbowCycle(uint8_t wait)
   }
 }
 
-
 int main(void)
 {
   init();
-  DDRD &=~(1<<6); PORTD |=1<<6;
+  DDRD &= ~(1 << 6); PORTD |= 1 << 6; // button 6 pin input HIGH
+  DDRD &= ~(1 << 7); // sound 7 pin input
   Serial.begin(9600);
   setADCrate(1);
   dht.begin();
@@ -150,15 +152,28 @@ int main(void)
     _delay_us(3000);
     while (1)
     {
-      if (analogRead(PIRpin) > 500 && millis() - last_pir > 10000)
+
+      if (((PIND >> 7) & 1) == LOW)
       {
-        last_pir = millis();
-        Serial.println(F("Есть движение!"));
+        // Если прошло 25 мс с момента последнего состояния низкого логического уровня,
+        // это значит, что обнаружен хлопок, а не какие-либо ложные звуки
+        if (millis() - lastSound > 25)
+        {
+          Serial.println(F("Clap detected!"));
+        }
+
+        lastSound = millis();
       }
 
-      dht_serial();
-      rainbowCycle(2); // change for speed
+        if (analogRead(PIRpin) > 500 && millis() - last_pir > 10000)
+        {
+          last_pir = millis();
+          Serial.println(F("Есть движение!"));
+        }
+
+        dht_serial();
+        rainbowCycle(2); // change for speed
+      }
     }
+    return 0;
   }
-  return 0;
-}
