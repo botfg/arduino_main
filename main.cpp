@@ -5,14 +5,13 @@
 #include <DHT.h>
 #include <DHT_U.h>
 #include <Adafruit_NeoPixel.h>
-#include "GyverHacks.h"
+#include <avdweb_AnalogReadFast.h>
 
 #define LEDPIN 3
 #define count_led 90
 #define DHTPIN 2
 #define PIRpin 0
 
-unsigned long lastSoundDetectTime;
 
 DHT dht(DHTPIN, DHT11);
 
@@ -78,7 +77,7 @@ uint32_t Wheel(byte WheelPos)
 }
 // Slightly different, this makes the rainbow equally distributed throughout
 
-void rainbowCycle(uint8_t wait)
+void rainbowCycle_button(uint8_t wait)
 {
   uint16_t i, j;
   if (!((PIND >> 6) & 1) && butt_flag == 0 && millis() - last_press > 500)
@@ -90,7 +89,7 @@ void rainbowCycle(uint8_t wait)
       for (j = 0; j < 256 * 5; j++)
       { // 5 cycles of all colors on wheel
         dht_serial();
-        if (analogRead(PIRpin) > 500 && millis() - last_pir > 10000)
+        if (analogReadFast(PIRpin) > 500 && millis() - last_pir > 10000)
         {
           last_pir = millis();
           Serial.println(F("Есть движение!"));
@@ -136,13 +135,72 @@ void rainbowCycle(uint8_t wait)
   }
 }
 
+
+void rainbowCycle_sound(uint8_t wait)
+{
+  uint16_t i, j;
+  if ((((PIND >> 7) & 1) == LOW) && butt_flag == 0 && millis() - lastSound > 500)
+  {
+    butt_flag = 1;
+    lastSound = millis();
+    while (1)
+    {
+      for (j = 0; j < 256 * 5; j++)
+      { // 5 cycles of all colors on wheel
+        dht_serial();
+        if (analogReadFast(PIRpin) > 500 && millis() - last_pir > 10000)
+        {
+          last_pir = millis();
+          Serial.println(F("Есть движение!"));
+        }
+        if ((((PIND >> 7) & 1) == LOW) && butt_flag == 1 && millis() - lastSound > 500)
+        {
+          butt_flag = 0;
+          for (int i = 0; i < count_led; i++)
+          {
+            strip.setPixelColor(i, strip.Color(0, 0, 0)); // Черный цвет, т.е. выключено.
+          }
+          strip.show();
+          lastSound = millis();
+          return;
+        }
+        else
+        {
+          for (i = 0; i < strip.numPixels(); i++)
+          {
+            if ((((PIND >> 7) & 1) == LOW) && butt_flag == 0 && millis() - lastSound > 500)
+            {
+              butt_flag = 0;
+              for (int i = 0; i < count_led; i++)
+              {
+                strip.setPixelColor(i, strip.Color(0, 0, 0)); // Черный цвет, т.е. выключено.
+              }
+              // Передаем цвета ленте.
+              strip.show();
+              lastSound = millis();
+              return;
+            }
+            else
+            {
+              strip.setPixelColor(i, Wheel(((i * 256 / strip.numPixels()) + j) & 255));
+            }
+          }
+          strip.show();
+          _delay_us(wait);
+        }
+      }
+      last_press = millis();
+    }
+  }
+}
+
+
 int main(void)
 {
   init();
   DDRD &= ~(1 << 6); PORTD |= 1 << 6; // button 6 pin input HIGH
   DDRD &= ~(1 << 7); // sound 7 pin input
   Serial.begin(9600);
-  setADCrate(1);
   dht.begin();
   strip.begin();
   strip.show();
@@ -165,14 +223,15 @@ int main(void)
         lastSound = millis();
       }
 
-        if (analogRead(PIRpin) > 500 && millis() - last_pir > 10000)
+        if (analogReadFast(PIRpin) > 500 && millis() - last_pir > 10000)
         {
           last_pir = millis();
           Serial.println(F("Есть движение!"));
         }
 
         dht_serial();
-        rainbowCycle(2); // change for speed
+        rainbowCycle_sound(2);
+        rainbowCycle_button(2); // change for speed
       }
     }
     return 0;
