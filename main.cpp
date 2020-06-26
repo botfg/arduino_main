@@ -1,5 +1,7 @@
 #include <Arduino.h>
 #include <avr/io.h>
+#include <avr/wdt.h>
+#include <avr/sleep.h>
 #include <util/delay.h>
 #include <Wire.h>
 #include <DHT.h>
@@ -9,16 +11,16 @@
 
 #define LEDPIN 3
 #define count_led 90
-#define DHTPIN 2
+#define DHTPIN 5
 #define PIRpin 0
-
 
 DHT dht(DHTPIN, DHT11);
 
 Adafruit_NeoPixel strip = Adafruit_NeoPixel(count_led, LEDPIN, NEO_GRB + NEO_KHZ800);
 
 boolean butt_flag;
-boolean butt;
+volatile bool countOn;
+volatile uint32_t timerPrew;
 uint32_t last_press;
 uint32_t last_temp;
 uint32_t last_pir;
@@ -77,64 +79,33 @@ uint32_t Wheel(byte WheelPos)
 }
 // Slightly different, this makes the rainbow equally distributed throughout
 
-void rainbowCycle_button(uint8_t wait)
+void rainbowCycle_button_2(uint8_t wait)
 {
   uint16_t i, j;
-  if (!((PIND >> 6) & 1) && butt_flag == 0 && millis() - last_press > 500)
-  {
-    butt_flag = 1;
-    last_press = millis();
-    while (1)
+  for (j = 0; j < 256 * 5; j++)
+  { // 5 cycles of all colors on wheel
+    for (i = 0; i < count_led; i++)
     {
-      for (j = 0; j < 256 * 5; j++)
-      { // 5 cycles of all colors on wheel
-        dht_serial();
-        if (analogReadFast(PIRpin) > 500 && millis() - last_pir > 10000)
-        {
-          last_pir = millis();
-          Serial.println(F("Есть движение!"));
-        }
-        if (!((PIND >> 6) & 1) && butt_flag == 1 && millis() - last_press > 500)
-        {
-          butt_flag = 0;
-          for (int i = 0; i < count_led; i++)
-          {
-            strip.setPixelColor(i, strip.Color(0, 0, 0)); // Черный цвет, т.е. выключено.
-          }
-          strip.show();
-          last_press = millis();
-          return;
-        }
-        else
-        {
-          for (i = 0; i < strip.numPixels(); i++)
-          {
-            if (!((PIND >> 6) & 1) && butt_flag == 0 && millis() - last_press > 500)
-            {
-              butt_flag = 0;
-              for (int i = 0; i < count_led; i++)
-              {
-                strip.setPixelColor(i, strip.Color(0, 0, 0)); // Черный цвет, т.е. выключено.
-              }
-              // Передаем цвета ленте.
-              strip.show();
-              last_press = millis();
-              return;
-            }
-            else
-            {
-              strip.setPixelColor(i, Wheel(((i * 256 / strip.numPixels()) + j) & 255));
-            }
-          }
-          strip.show();
-          _delay_us(wait);
-        }
-      }
-      last_press = millis();
+      strip.setPixelColor(i, Wheel(((i * 256 / strip.numPixels()) + j) & 255));
     }
+    strip.show();
+    _delay_us(wait);
   }
 }
 
+ISR(INT0_vect)
+{
+  if ((millis() - timerPrew) > 200) //счетчик на 200 мс для борьбы с дребезгом
+  {
+    countOn = 0;
+    timerPrew = millis();
+  }
+  if (countOn == 0) //"флажок" для разрешения подсчета
+  {
+    PORTB = PORTB ^ 1 << 4; // "digitalWrite(pin - D 3 INVERT);".
+    countOn = 1;            //запрет подсчета после первого срабатывания кнопки
+  }
+}
 
 void rainbowCycle_sound(uint8_t wait)
 {
@@ -194,45 +165,46 @@ void rainbowCycle_sound(uint8_t wait)
   }
 }
 
-
 int main(void)
 {
   init();
-  DDRD &= ~(1 << 6); PORTD |= 1 << 6; // button 6 pin input HIGH
-  DDRD &= ~(1 << 7); // sound 7 pin input
+  _delay_us(3000);
+  DDRB |= 1 << 4; //mosfet 12 pin output
+  DDRD &= ~(1 << 2);
+  PORTD |= 1 << 2;   // button 6 pin input HIGH
+  DDRD &= ~(1 << 3); // sound 3 pin input  boolean butt_flag_2 = 1;
   Serial.begin(9600);
   dht.begin();
   strip.begin();
   strip.show();
 
+  //прерывания
+  //EICRA &= ~(1 << ISC00); //Сбрасываем ISC00
+  EICRA |= (1 << ISC10); // Устанавливаем ISC10 - отслеживаем  на INT0
+  EIMSK |= (1 << INT0);  // Разрешаем прерывание INT0
+
   for (;;)
   {
-    _delay_us(3000);
-    while (1)
+    if (((PIND >> 3) & 1) == LOW)
     {
-
-      if (((PIND >> 7) & 1) == LOW)
+      // Если прошло 25 мс с момента последнего состояния низкого логического уровня,
+      // это значит, что обнаружен хлопок, а не какие-либо ложные звуки
+      if (millis() - lastSound > 25)
       {
-        // Если прошло 25 мс с момента последнего состояния низкого логического уровня,
-        // это значит, что обнаружен хлопок, а не какие-либо ложные звуки
-        if (millis() - lastSound > 25)
-        {
-          Serial.println(F("Clap detected!"));
-        }
-
-        lastSound = millis();
+        Serial.println(F("Clap detected!"));
       }
 
-        if (analogReadFast(PIRpin) > 500 && millis() - last_pir > 10000)
-        {
-          last_pir = millis();
-          Serial.println(F("Есть движение!"));
-        }
-
-        dht_serial();
-        rainbowCycle_sound(2);
-        rainbowCycle_button(2); // change for speed
-      }
+      lastSound = millis();
     }
-    return 0;
+
+    if (analogReadFast(PIRpin) > 500 && millis() - last_pir > 10000)
+    {
+      last_pir = millis();
+      Serial.println(F("Есть движение!"));
+    }
+
+    dht_serial();
+    rainbowCycle_button_2(2);
   }
+  return 0;
+}
