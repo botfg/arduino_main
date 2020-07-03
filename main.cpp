@@ -4,6 +4,7 @@
 #include <Wire.h>
 #include <DHT.h>
 #include <DHT_U.h>
+#include <SFE_BMP180.h>
 #include <Adafruit_NeoPixel.h>
 #include <avdweb_AnalogReadFast.h>
 
@@ -12,34 +13,66 @@
 #define DHTPIN 5
 #define PIRpin 0
 
+SFE_BMP180 pressure;
 
 DHT dht(DHTPIN, DHT11);
 
 Adafruit_NeoPixel strip = Adafruit_NeoPixel(count_led, LEDPIN, NEO_GRB + NEO_KHZ800);
 
+Adafruit_NeoPixel strip2 = Adafruit_NeoPixel(16, 8, NEO_GRB + NEO_KHZ800);
+
 volatile boolean butt_flag = 0;
-volatile uint32_t timerPrew;
+volatile uint64_t timerPrew;
 uint64_t last_temp;
 uint64_t last_pir;
+uint64_t last_bmp;
 
-void dht_serial(void)
+void bmp180(void)
 {
-  if (millis() - last_temp > 5000)
+  if (micros() - last_bmp > 10000000)
   {
+    char status;
+    double T, P;
     int8_t h = dht.readHumidity();
-    int8_t t = dht.readTemperature();
-    last_temp = millis();
-    if (isnan(h) || isnan(t))
+
+
+    status = pressure.startTemperature();
+    if (status != 0)
     {
-      Serial.println(F("Error"));
-      return;
+      // ждем:
+      delay(status);
+      status = pressure.getTemperature(T);
+      if (status != 0)
+      {
+        Serial.println();
+        Serial.println();
+        Serial.print(F("Температура: "));
+        Serial.print(T, 2);
+        Serial.print(F(" градусов C, "));
+        Serial.print(F(" \t"));
+        Serial.print(F("Air humidity: "));
+        Serial.println(h);
+        Serial.println();
+      }
     }
-    Serial.print(F("Air humidity: "));
-    Serial.print(h);
-    Serial.print(F(" %\t"));
-    Serial.print(F("Air temp: "));
-    Serial.print(t);
-    Serial.println(F(" *C ")); //Вывод показателей на экран
+
+    status = pressure.startPressure(3);
+    if (status != 0)
+    {
+      delay(status);
+      // Теперь можно получить давление в переменную P.
+      //Функция вернет 1 если все ОК, 0 если не ОК.
+      status = pressure.getPressure(P, T);
+      if (status != 0)
+      {
+        Serial.print(F("Абсолютное давление: "));
+        Serial.print(P, 2);
+        Serial.print(F(" миллибар, "));
+        Serial.print(P * 0.750064, 2);
+        Serial.println(F(" мм ртутного столба"));
+      }
+    }
+    last_bmp = micros();
   }
 }
 
@@ -91,10 +124,9 @@ void rainbowCycle_button_2(void)
   }
 }
 
-
 ISR(INT0_vect)
 {
-  if ((micros() - timerPrew) > 500000)
+  if ((micros() - timerPrew) > 200000)
   {
     butt_flag = !butt_flag;
     timerPrew = micros();
@@ -109,8 +141,18 @@ int main(void)
   PORTD |= 1 << 2; // button 6 pin input HIGH
   Serial.begin(9600);
   dht.begin();
+  pressure.begin();
   strip.begin();
   strip.show();
+  strip2.begin();
+  strip2.show();
+
+  for (int i = 0; i < 16; i++)
+  {
+    strip2.setPixelColor(i, strip2.Color(0, 20, 0));
+  }
+
+  strip2.show();
 
   //прерывания
   EICRA |= (1 << ISC10); // Устанавливаем ISC10 - отслеживаем  на INT0
@@ -124,8 +166,8 @@ int main(void)
       Serial.println(F("Есть движение!"));
     }
 
-    dht_serial();
     rainbowCycle_button_2();
+    bmp180();
   }
   return 0;
 }
