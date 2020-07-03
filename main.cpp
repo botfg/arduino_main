@@ -21,7 +21,7 @@ Adafruit_NeoPixel strip = Adafruit_NeoPixel(count_led, LEDPIN, NEO_GRB + NEO_KHZ
 
 Adafruit_NeoPixel strip2 = Adafruit_NeoPixel(16, 8, NEO_GRB + NEO_KHZ800);
 
-volatile boolean butt_flag = 0;
+volatile boolean butt_flag;
 volatile uint64_t timerPrew;
 uint64_t last_temp;
 uint64_t last_pir;
@@ -40,7 +40,7 @@ void bmp180(void)
     if (status != 0)
     {
       // ждем:
-      delay(status);
+      _delay_us(status);
       status = pressure.getTemperature(T);
       if (status != 0)
       {
@@ -59,7 +59,7 @@ void bmp180(void)
     status = pressure.startPressure(3);
     if (status != 0)
     {
-      delay(status);
+      _delay_us(status);
       // Теперь можно получить давление в переменную P.
       //Функция вернет 1 если все ОК, 0 если не ОК.
       status = pressure.getPressure(P, T);
@@ -156,7 +156,7 @@ int main(void)
 
   //прерывания
   EICRA |= (1 << ISC10); // Устанавливаем ISC10 - отслеживаем  на INT0
-  EIMSK |= (1 << INT0);  // Разрешаем прерывание INT0
+  EIMSK |= (1 << INT0);  //   прерывание INT0
 
   for (;;)
   {
