@@ -200,7 +200,7 @@ void rainbowCycle_button_2(void)
 
 ISR(INT0_vect)
 {
-  if ((micros() - *ptrtimerPrew) > 10000)
+  if ((micros() - *ptrtimerPrew) > 50000)
   {
     *ptrbutt_flag = !*ptrbutt_flag;
     *ptrtimerPrew = micros();
