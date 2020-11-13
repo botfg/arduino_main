@@ -1,32 +1,32 @@
 #include <Arduino.h>
 #include <Wire.h>
-#include <SFE_BMP180.h>
+#include <SFE_BMP180.h> 
+#include <SPI.h>                  
 #include <Adafruit_NeoPixel.h>
 
-#define LEDPIN 3
+
+
+
+
+#define LEDPIN 6
 #define count_led 90
 
 #define DHT_ERROR_CHECKSUM -1 // Ошибка контрольной суммы
 #define DHT_ERROR_TIMEOUT -2  // Ошибка таймаут
 
-uint32_t (*ptrWheel)(byte);             // объявление указателя на функцию
-void (*ptrbmp180)(void);
-void (*ptrrainbowCycle_button_2)(void);
-int16_t (*ptrDHT11)(int16_t);
+
 
 SFE_BMP180 pressure;
 
 Adafruit_NeoPixel strip = Adafruit_NeoPixel(count_led, LEDPIN, NEO_GRB + NEO_KHZ800);
 
-Adafruit_NeoPixel strip2 = Adafruit_NeoPixel(16, 8, NEO_GRB + NEO_KHZ800);
+
 
 volatile boolean butt_flag;
 volatile uint64_t timerPrew;
 uint64_t last_bmp;
 
-volatile boolean *ptrbutt_flag = &butt_flag;
-volatile uint64_t *ptrtimerPrew = &timerPrew;
-uint64_t *ptrlast_bmp = &last_bmp;
+volatile const int data = 1;
 
 int16_t DHT11(void)
 {
@@ -92,35 +92,31 @@ int16_t DHT11(void)
 
   // Присваиваем полученные данные переменным температуры и влажности
   byte humidity = bytes[0];
-  byte *ptrhumidity = &humidity;
 
-  return *ptrhumidity;
+  return humidity;
 }
 
 void bmp180(void)
 {
-  if (micros() - *ptrlast_bmp > 30000000)
+  if (micros() - last_bmp > 30000000)
   {
     char status;
     double T, P;
 
-    char *ptrstatus = &status;
-    double *ptrT = &T;
-    double *ptrP = &P;
 
-    *ptrstatus = pressure.startTemperature();
-    if (*ptrstatus != 0)
+    status = pressure.startTemperature();
+    if (status != 0)
     {
       // ждем:
-      delay(*ptrstatus);
-      *ptrstatus = pressure.getTemperature(T);
+      delay(status);
+      status = pressure.getTemperature(T);
       int16_t result = (*DHT11)();
-      if (*ptrstatus != 0)
+      if (status != 0)
       {
         Serial.println();
         Serial.println();
         Serial.print(F("Температура: "));
-        Serial.print(*ptrT, 2);
+        Serial.print(T, 2);
         Serial.print(F(" °C"));
         Serial.print(F(" Влажность: "));
         Serial.print(result);
@@ -129,23 +125,23 @@ void bmp180(void)
       }
     }
 
-    *ptrstatus = pressure.startPressure(3);
-    if (*ptrstatus != 0)
+    status = pressure.startPressure(3);
+    if (status != 0)
     {
-      delay(*ptrstatus);
+      delay(status);
       // Теперь можно получить давление в переменную P.
       //Функция вернет 1 если все ОК, 0 если не ОК.
-      *ptrstatus = pressure.getPressure(*ptrP, *ptrT);
-      if (*ptrstatus != 0)
+      status = pressure.getPressure(P, T);
+      if (status != 0)
       {
         Serial.print(F("Абсолютное давление: "));
-        Serial.print(*ptrP, 2);
+        Serial.print(P, 2);
         Serial.print(F(" миллибар, "));
-        Serial.print(*ptrP * 0.750064, 2);
+        Serial.print(P * 0.750064, 2);
         Serial.println(F(" мм ртутного столба"));
       }
     }
-    *ptrlast_bmp = micros();
+    last_bmp = micros();
   }
 }
 
@@ -172,14 +168,13 @@ uint32_t Wheel(byte WheelPos)
 
 void rainbowCycle_button_2(void)
 {
-  ptrWheel = Wheel;
-  if (*ptrbutt_flag == 1)
+  if (butt_flag == 1)
   {
     for (byte j = 0; j < 256 * 5; j++)
     { // 5 cycles of all colors on wheel
       for (byte i = 0; i < count_led; i++)
       {
-        if (*ptrbutt_flag == 0)
+        if (butt_flag == 0)
         {
           for (byte i = 0; i < count_led; i++)
           {
@@ -200,14 +195,17 @@ void rainbowCycle_button_2(void)
 
 ISR(INT0_vect)
 {
-  if ((micros() - *ptrtimerPrew) > 50000)
+  if ((micros() - timerPrew) > 50000)
   {
-    *ptrbutt_flag = !*ptrbutt_flag;
-    *ptrtimerPrew = micros();
+    butt_flag = !butt_flag;
+    timerPrew = micros();
   }
 }
 
-int main(void)
+
+
+
+int main()
 {
   init();
   cli();
@@ -222,23 +220,13 @@ int main(void)
   pressure.begin();
   strip.begin();
   strip.show();
-  strip2.begin();
-  strip2.show();
 
-  ptrrainbowCycle_button_2 = rainbowCycle_button_2;
-  ptrbmp180 = bmp180;
 
-  for (byte i = 0; i < 16; i++)
-  {
-    strip2.setPixelColor(i, strip2.Color(0, 5, 0));
-  }
-
-  strip2.show();
 
   for (;;)
   {
-    (*rainbowCycle_button_2)();
-    (*bmp180)();
+    rainbowCycle_button_2();
+    bmp180();
   }
   return 0;
 }
